@@ -2,13 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>AR Hangman</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             background-color: #f0f0f0;
         }
         #ar-button {
@@ -72,6 +72,16 @@
             font-size: 18px;
             color: #00ff00;
         }
+        #error {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: red;
+            font-size: 20px;
+            z-index: 100;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -82,15 +92,15 @@
         <div id="hangman"></div>
         <div id="message"></div>
     </div>
+    <div id="error">WebXR not supported on this device or browser.</div>
+
+    <!-- Load Three.js and WebXR polyfills -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
+
     <script>
         // --- Game State ---
-        const words = [
-            "THREE", "WEBXR", "HANGMAN", "JAVASCRIPT", "DEVELOPER",
-            "AUGMENTED", "REALITY", "GAME", "CREATIVE", "INTERACTIVE",
-            "PROGRAMMING", "FUN", "LEARNING", "CHALLENGE", "INNOVATION"
-        ];
+        const words = ["THREE", "WEBXR", "HANGMAN", "JAVASCRIPT", "DEVELOPER", "AUGMENTED", "REALITY"];
         let hiddenWord = words[Math.floor(Math.random() * words.length)];
         let guessedLetters = [];
         let wrongGuesses = 0;
@@ -98,42 +108,92 @@
         const maxWrongGuesses = 6;
 
         // --- Three.js Setup ---
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.xr.enabled = true;
-        document.body.appendChild(renderer.domElement);
-        document.body.appendChild(ARButton.createButton(renderer));
+        let scene, camera, renderer, controller;
 
-        // --- AR Lighting ---
-        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-        light.position.set(0.5, 1, 0.25);
-        scene.add(light);
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        directionalLight.position.set(0, 1, 0);
-        scene.add(directionalLight);
+        function init() {
+            // Check WebXR support
+            if (!navigator.xr) {
+                document.getElementById('error').style.display = 'block';
+                return;
+            }
 
-        // --- Create Retro Letters ---
-        function createLetter(char, x, y, z) {
-            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.02);
-            const material = new THREE.MeshStandardMaterial({ color: 0x00ff00, metalness: 0.5, roughness: 0.5 });
-            const mesh = new THREE.Mesh(geometry, material);
-            mesh.position.set(x, y, z);
-            mesh.userData = { char };
-            scene.add(mesh);
-            return mesh;
+            // Setup Three.js
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.xr.enabled = true;
+            document.body.appendChild(renderer.domElement);
+
+            // ARButton for entering AR
+            document.body.appendChild(ARButton.createButton(renderer));
+
+            // Lighting
+            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+            light.position.set(0.5, 1, 0.25);
+            scene.add(light);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(0, 1, 0);
+            scene.add(directionalLight);
+
+            // Create letters
+            createLetters();
+
+            // Setup controller for shooting
+            setupController();
+
+            // Start animation loop
+            renderer.setAnimationLoop(() => {
+                renderer.render(scene, camera);
+            });
+
+            // UI updates
+            updateWordDisplay();
+            updateHangman();
+
+            // Restart button
+            document.getElementById('restart-button').addEventListener('click', restartGame);
         }
 
-        // --- Place Letters in a Grid ---
-        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-        alphabet.split('').forEach((char, i) => {
-            const x = (i % 5) * 0.2 - 0.4;
-            const y = Math.floor(i / 5) * -0.2 - 0.2;
-            letters.push(createLetter(char, x, y, -1));
-        });
+        function createLetters() {
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            alphabet.split('').forEach((char, i) => {
+                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.02);
+                const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+                const mesh = new THREE.Mesh(geometry, material);
+                mesh.position.set((i % 5) * 0.2 - 0.4, Math.floor(i / 5) * -0.2 - 0.2, -1);
+                mesh.userData = { char };
+                scene.add(mesh);
+                letters.push(mesh);
+            });
+        }
 
-        // --- UI Updates ---
+        function setupController() {
+            controller = renderer.xr.getController(0);
+            controller.addEventListener('select', onSelect);
+            scene.add(controller);
+        }
+
+        function onSelect() {
+            const raycaster = new THREE.Raycaster();
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
+            const intersects = raycaster.intersectObjects(letters);
+            if (intersects.length > 0) {
+                const letter = intersects[0].object;
+                const char = letter.userData.char;
+                if (!guessedLetters.includes(char)) {
+                    guessedLetters.push(char);
+                    if (!hiddenWord.includes(char)) wrongGuesses++;
+                    updateWordDisplay();
+                    updateHangman();
+                    letter.material.color.set(0xff0000);
+                    setTimeout(() => scene.remove(letter), 500);
+                }
+            }
+        }
+
         function updateWordDisplay() {
             const display = hiddenWord.split('').map(c => guessedLetters.includes(c) ? c : '_').join(' ');
             document.getElementById('word-display').textContent = display;
@@ -150,60 +210,27 @@
             }
         }
 
-        // --- Raycasting for Shooting ---
-        const raycaster = new THREE.Raycaster();
-        const controller = renderer.xr.getController(0);
-        controller.addEventListener('select', () => {
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
-            const intersects = raycaster.intersectObjects(letters);
-            if (intersects.length > 0) {
-                const letter = intersects[0].object;
-                const char = letter.userData.char;
-                if (!guessedLetters.includes(char)) {
-                    guessedLetters.push(char);
-                    if (!hiddenWord.includes(char)) wrongGuesses++;
-                    updateWordDisplay();
-                    updateHangman();
-                    letter.material.color.set(0xff0000);
-                    setTimeout(() => scene.remove(letter), 500);
-                }
-            }
-        });
-        scene.add(controller);
-
-        // --- Game Logic ---
-        updateWordDisplay();
-        updateHangman();
-
-        // --- Restart Game ---
-        document.getElementById('restart-button').addEventListener('click', () => {
+        function restartGame() {
             guessedLetters = [];
             wrongGuesses = 0;
             hiddenWord = words[Math.floor(Math.random() * words.length)];
             letters.forEach(letter => scene.remove(letter));
             letters = [];
-            alphabet.split('').forEach((char, i) => {
-                const x = (i % 5) * 0.2 - 0.4;
-                const y = Math.floor(i / 5) * -0.2 - 0.2;
-                letters.push(createLetter(char, x, y, -1));
-            });
+            createLetters();
             document.getElementById('message').textContent = '';
             updateWordDisplay();
             updateHangman();
-        });
+        }
 
-        // --- Animation Loop ---
-        renderer.setAnimationLoop(() => {
-            renderer.render(scene, camera);
-        });
-
-        // --- Handle Window Resize ---
+        // Handle window resize
         window.addEventListener('resize', () => {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
+
+        // Initialize the app
+        init();
     </script>
 </body>
 </html>
