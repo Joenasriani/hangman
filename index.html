@@ -1,213 +1,209 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>VR Hangman – shoot the keyboard</title>
-  <style>
-    body{margin:0;background:#111;color:#fff;font-family:sans-serif}
-    #ui{
-      position:absolute;top:10px;left:10px;z-index:10;
-      background:rgba(0,0,0,.6);padding:12px;border-radius:8px;
-      font-size:1.4rem;
-    }
-    #ui span.correct{color:#0f0} #ui span.wrong{color:#f44}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Hangman</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+        }
+        #ar-button {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            padding: 12px 24px;
+            font-size: 18px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            z-index: 100;
+            cursor: pointer;
+        }
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 16px 24px;
+            border-radius: 12px;
+            color: white;
+            text-align: center;
+            font-family: 'Courier New', monospace;
+            z-index: 10;
+            min-width: 80%;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        }
+        #word-display {
+            font-size: 28px;
+            letter-spacing: 8px;
+            margin-bottom: 8px;
+            color: #00ff00;
+        }
+        #hangman {
+            font-size: 24px;
+            color: #ff5555;
+            height: 60px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        #restart-button {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 16px;
+            background: #f44336;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 100;
+        }
+        #message {
+            margin-top: 8px;
+            font-size: 18px;
+            color: #00ff00;
+        }
+    </style>
 </head>
 <body>
-<div id="ui">
-  <div id="word"></div>
-  <div id="status">Wrong guesses: <span id="wrong">0</span> / 6</div>
-</div>
-<button id="goVR" style="position:absolute;z-index:20;top:50%;left:50%;transform:translate(-50%,-50%);padding:1rem 2rem;font-size:1.5rem">Enter VR</button>
-<canvas id="c"></canvas>
+    <button id="ar-button">Start AR</button>
+    <button id="restart-button">Restart</button>
+    <div id="ui">
+        <div id="word-display"></div>
+        <div id="hangman"></div>
+        <div id="message"></div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
+    <script>
+        // --- Game State ---
+        const words = [
+            "THREE", "WEBXR", "HANGMAN", "JAVASCRIPT", "DEVELOPER",
+            "AUGMENTED", "REALITY", "GAME", "CREATIVE", "INTERACTIVE",
+            "PROGRAMMING", "FUN", "LEARNING", "CHALLENGE", "INNOVATION"
+        ];
+        let hiddenWord = words[Math.floor(Math.random() * words.length)];
+        let guessedLetters = [];
+        let wrongGuesses = 0;
+        let letters = [];
+        const maxWrongGuesses = 6;
 
-<script type="module">
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
-import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
-import { Text } from 'https://cdn.jsdelivr.net/npm/troika-three-text@0.49.0/dist/troika-three-text.esm.js';
+        // --- Three.js Setup ---
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+        document.body.appendChild(ARButton.createButton(renderer));
 
-/* ---------- CONFIG ---------- */
-const WORDS = ['REACTOR','WEBXR','HANGMAN','VIRTUAL','REALITY','KEYBOARD','MISSING','LETTER'];
-const MYSTERY = WORDS[Math.floor(Math.random()*WORDS.length)];
-let guessed = new Set();
-let wrong = 0;
-const MAX_WRONG = 6;
+        // --- AR Lighting ---
+        const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
+        light.position.set(0.5, 1, 0.25);
+        scene.add(light);
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        directionalLight.position.set(0, 1, 0);
+        scene.add(directionalLight);
 
-/* ---------- THREE BASICS ---------- */
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x1c1c2e);
-const camera = new THREE.PerspectiveCamera(80,innerWidth/innerHeight,0.1,100);
-camera.position.set(0,1.6,3);
-const renderer = new THREE.WebGLRenderer({canvas:c,antialias:true});
-renderer.setSize(innerWidth,innerHeight);
-renderer.xr.enabled = true;
-document.body.replaceChild(VRButton.createButton(renderer),goVR);
-
-/* ---------- LIGHTING ---------- */
-scene.add(new THREE.HemisphereLight(0xccccff,0x222244,1));
-const dl = new THREE.DirectionalLight(0xffffff,0.8);
-dl.position.set(5,10,7); scene.add(dl);
-
-/* ---------- GALLOWS ---------- */
-function makeGallows(){
-  const g = new THREE.Group();
-  const wood = new THREE.MeshStandardMaterial({color:0x8b5a2b});
-  // upright
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.15,2.5,0.15),wood).translateY(1.25));
-  // top beam
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(1.2,0.15,0.15),wood).translateY(2.5));
-  // support
-  g.add(new THREE.Mesh(new THREE.BoxGeometry(0.8,0.15,0.15),wood)
-          .rotateZ(Math.PI/4).position.set(0.3,0.5,0));
-  g.position.set(-3,0,0);
-  return g;
-}
-const gallows = makeGallows(); scene.add(gallows);
-
-/* ---------- BLANKS ---------- */
-const blanksGroup = new THREE.Group(); scene.add(blanksGroup);
-const letterBoxes = [];
-function buildBlanks(){
-  blanksGroup.clear();
-  letterBoxes.length=0;
-  const size = 0.4, gap=0.1;
-  MYSTERY.split('').forEach((ch,i)=>{
-    const box = new THREE.Mesh(
-      new THREE.BoxGeometry(size,0.1,size),
-      new THREE.MeshStandardMaterial({color:0x333})
-    );
-    box.position.x = i*(size+gap);
-    blanksGroup.add(box);
-    const txt = new Text();
-    txt.text = guessed.has(ch)? ch : '_';
-    txt.fontSize = 0.3;
-    txt.color = 0xffffff;
-    txt.anchorX='center'; txt.anchorY='middle';
-    txt.position.copy(box.position).y+=0.15;
-    txt.sync();
-    blanksGroup.add(txt);
-    letterBoxes.push(txt);
-  });
-  blanksGroup.position.set(-(MYSTERY.length*(size+gap))/2,1.8,0);
-}
-buildBlanks();
-
-/* ---------- BIG KEYBOARD ---------- */
-const keyboard = new THREE.Group(); scene.add(keyboard);
-const keyMeshes = {};
-function buildKeyboard(){
-  const rows = ['QWERTYUIOP','ASDFGHJKL','ZXCVBNM'];
-  const keySize = 0.25, keyGap=0.05;
-  rows.forEach((row,ri)=>{
-    const y = -ri*(keySize+keyGap);
-    row.split('').forEach((ch,ci)=>{
-      const geo = new THREE.BoxGeometry(keySize,keySize,keySize);
-      const mat = new THREE.MeshStandardMaterial({color:0x2c3e50});
-      const key = new THREE.Mesh(geo,mat);
-      key.position.x = ci*(keySize+keyGap) - (row.length*(keySize+keyGap))/2;
-      key.position.y = y;
-      key.userData.letter = ch;
-      keyboard.add(key);
-      keyMeshes[ch]=key;
-      // label
-      const txt = new Text();
-      txt.text = ch;
-      txt.fontSize = 0.18;
-      txt.color = 0xecf0f1;
-      txt.anchorX='center'; txt.anchorY='middle';
-      txt.position.copy(key.position).z+=keySize/2+0.01;
-      txt.sync();
-      keyboard.add(txt);
-    });
-  });
-  keyboard.position.set(0,1, -2);
-}
-buildKeyboard();
-
-/* ---------- GUN / RAY ---------- */
-const ctrl = renderer.xr.getController(0); scene.add(ctrl);
-const ray = new THREE.Raycaster();
-const laserMat = new THREE.LineBasicMaterial({color:0x00ff00,transparent:true,opacity:0.7});
-const laserGeo = new THREE.BufferGeometry().setFromPoints([
-  new THREE.Vector3(0,0,0),
-  new THREE.Vector3(0,0,-30)
-]);
-const laserLine = new THREE.Line(laserGeo,laserMat);
-laserLine.scale.z = 0;
-ctrl.add(laserLine);
-
-/* ---------- SHOOT MECHANIC ---------- */
-let shooting = false;
-ctrl.addEventListener('selectstart',()=>{shooting=true; laserLine.scale.z=1;});
-ctrl.addEventListener('selectend',()=>{shooting=false; laserLine.scale.z=0;});
-
-/* ---------- GAME UPDATE ---------- */
-function updateWordDisplay(){
-  letterBoxes.forEach((txt,i)=>{
-    txt.text = guessed.has(MYSTERY[i]) ? MYSTERY[i] : '_';
-    txt.sync();
-  });
-  // win?
-  if([...MYSTERY].every(ch=>guessed.has(ch))){
-    status.innerHTML = '<span class="correct">YOU WIN!</span>';
-    renderer.setAnimationLoop(null); // stop
-  }
-}
-function wrongGuess(){
-  wrong++;
-  status.innerHTML = `Wrong guesses: <span class="wrong">${wrong}</span> / 6`;
-  // add hangman piece
-  const mat = new THREE.MeshStandardMaterial({color:0xffdbac});
-  const piece = new THREE.Group();
-  if(wrong===1){ // head
-    piece.add(new THREE.Mesh(new THREE.SphereGeometry(0.25),mat));
-    piece.position.set(-3,2.2,0);
-  }else if(wrong===2){ // body
-    piece.add(new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,1.2),mat));
-    piece.position.set(-3,1.4,0);
-  }else if(wrong===3){ // left arm
-    piece.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.7),mat)
-      .rotateZ(Math.PI/4).position.set(-0.35,0.35,0));
-    piece.position.set(-3,1.6,0);
-  }else if(wrong===4){ // right arm
-    piece.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.7),mat)
-      .rotateZ(-Math.PI/4).position.set(0.35,0.35,0));
-    piece.position.set(-3,1.6,0);
-  }else if(wrong===5){ // left leg
-    piece.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.8),mat)
-      .rotateZ(Math.PI/6).position.set(-0.2,-0.6,0));
-    piece.position.set(-3,0.8,0);
-  }else if(wrong===6){ // right leg -> game over
-    piece.add(new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.8),mat)
-      .rotateZ(-Math.PI/6).position.set(0.2,-0.6,0));
-    piece.position.set(-3,0.8,0);
-    status.innerHTML = '<span class="wrong">GAME OVER</span> word: '+MYSTERY;
-    renderer.setAnimationLoop(null);
-  }
-  scene.add(piece);
-}
-
-/* ---------- RENDER LOOP ---------- */
-renderer.setAnimationLoop(()=>{
-  if(shooting){
-    ray.set(ctrl.position, ctrl.getWorldDirection(new THREE.Vector3()));
-    const hits = ray.intersectObjects(Object.values(keyMeshes));
-    if(hits.length){
-      const key = hits[0].object;
-      const ch = key.userData.letter;
-      if(!guessed.has(ch)){
-        guessed.add(ch);
-        key.material.color.set(0x27ae60);
-        if(MYSTERY.includes(ch)){
-          updateWordDisplay();
-        }else{
-          wrongGuess();
+        // --- Create Retro Letters ---
+        function createLetter(char, x, y, z) {
+            const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.02);
+            const material = new THREE.MeshStandardMaterial({ color: 0x00ff00, metalness: 0.5, roughness: 0.5 });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.set(x, y, z);
+            mesh.userData = { char };
+            scene.add(mesh);
+            return mesh;
         }
-      }
-    }
-  }
-  renderer.render(scene,camera);
-});
-</script>
+
+        // --- Place Letters in a Grid ---
+        const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        alphabet.split('').forEach((char, i) => {
+            const x = (i % 5) * 0.2 - 0.4;
+            const y = Math.floor(i / 5) * -0.2 - 0.2;
+            letters.push(createLetter(char, x, y, -1));
+        });
+
+        // --- UI Updates ---
+        function updateWordDisplay() {
+            const display = hiddenWord.split('').map(c => guessedLetters.includes(c) ? c : '_').join(' ');
+            document.getElementById('word-display').textContent = display;
+            if (!display.includes('_')) {
+                document.getElementById('message').textContent = "You Win!";
+            }
+        }
+
+        function updateHangman() {
+            const hangmanParts = ['(˙˙)', '|', '/', '\\', '|', '/', '\\'];
+            document.getElementById('hangman').textContent = hangmanParts.slice(0, wrongGuesses).join(' ');
+            if (wrongGuesses >= maxWrongGuesses) {
+                document.getElementById('message').textContent = `Game Over! Word was: ${hiddenWord}`;
+            }
+        }
+
+        // --- Raycasting for Shooting ---
+        const raycaster = new THREE.Raycaster();
+        const controller = renderer.xr.getController(0);
+        controller.addEventListener('select', () => {
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
+            const intersects = raycaster.intersectObjects(letters);
+            if (intersects.length > 0) {
+                const letter = intersects[0].object;
+                const char = letter.userData.char;
+                if (!guessedLetters.includes(char)) {
+                    guessedLetters.push(char);
+                    if (!hiddenWord.includes(char)) wrongGuesses++;
+                    updateWordDisplay();
+                    updateHangman();
+                    letter.material.color.set(0xff0000);
+                    setTimeout(() => scene.remove(letter), 500);
+                }
+            }
+        });
+        scene.add(controller);
+
+        // --- Game Logic ---
+        updateWordDisplay();
+        updateHangman();
+
+        // --- Restart Game ---
+        document.getElementById('restart-button').addEventListener('click', () => {
+            guessedLetters = [];
+            wrongGuesses = 0;
+            hiddenWord = words[Math.floor(Math.random() * words.length)];
+            letters.forEach(letter => scene.remove(letter));
+            letters = [];
+            alphabet.split('').forEach((char, i) => {
+                const x = (i % 5) * 0.2 - 0.4;
+                const y = Math.floor(i / 5) * -0.2 - 0.2;
+                letters.push(createLetter(char, x, y, -1));
+            });
+            document.getElementById('message').textContent = '';
+            updateWordDisplay();
+            updateHangman();
+        });
+
+        // --- Animation Loop ---
+        renderer.setAnimationLoop(() => {
+            renderer.render(scene, camera);
+        });
+
+        // --- Handle Window Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
 </body>
 </html>
