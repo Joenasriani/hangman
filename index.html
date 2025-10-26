@@ -1,183 +1,324 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR Test</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pencil Hangman</title>
     <style>
-        body { margin: 0; overflow: hidden; }
-        #ar-button {
-            position: absolute;
-            left: 50%;
-            top: 50%;
-            transform: translate(-50%, -50%);
-            padding: 12px 24px;
-            font-size: 18px;
-            background: #4CAF50;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            z-index: 100;
-            cursor: pointer;
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background-color: #f9f4e6;
+            color: #3a3a3a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/><path d="M0,0 L100,0 M0,20 L100,20 M0,40 L100,40 M0,60 L100,60 M0,80 L100,80 M0,100 L100,100 M20,0 L20,100 M40,0 L40,100 M60,0 L60,100 M80,0 L80,100" stroke="%23d9d9d9" stroke-width="1"/></svg>');
         }
-        #error {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: red;
+
+        #game-container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 30px;
+            border: 2px dashed #ccc;
+            box-shadow: 0 0 0 4px #f9f4e6, 2px 2px 10px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        #hangman-art {
+            font-family: 'Courier New', monospace;
             font-size: 20px;
-            z-index: 100;
-            display: none;
+            line-height: 1.4;
+            margin: 20px 0;
+            letter-spacing: 2px;
+            font-weight: bold;
+            color: #3a3a3a;
+            white-space: pre;
+            border: 1px dashed #ccc;
+            padding: 15px;
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.5);
+        }
+
+        #word-display {
+            font-size: 28px;
+            letter-spacing: 12px;
+            margin: 20px 0;
+            min-height: 40px;
+            font-weight: bold;
+            border-bottom: 1px dashed #ccc;
+            padding-bottom: 10px;
+            color: #3a3a3a;
+        }
+
+        #keyboard {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 6px;
+            margin: 20px 0;
+            max-width: 400px;
+        }
+
+        .key {
+            width: 36px;
+            height: 36px;
+            background: #f9f4e6;
+            color: #3a3a3a;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+            font-size: 18px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .key:hover {
+            background: #f0ebe0;
+        }
+
+        .key:disabled {
+            background: #e0e0e0;
+            color: #a0a0a0;
+            cursor: not-allowed;
+            border: 1px dashed #a0a0a0;
+        }
+
+        #message {
+            font-size: 20px;
+            margin: 15px 0;
+            min-height: 24px;
+            font-style: italic;
+            color: #5a5a5a;
+        }
+
+        #restart-button {
+            margin: 15px 0;
+            padding: 10px 25px;
+            background: #f9f4e6;
+            color: #3a3a3a;
+            border: 1px solid #ccc;
+            border-radius: 20px;
+            font-size: 16px;
+            cursor: pointer;
+            box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            font-weight: bold;
+        }
+
+        #restart-button:hover {
+            background: #f0ebe0;
+        }
+
+        #title {
+            font-size: 32px;
+            margin-bottom: 10px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            color: #3a3a3a;
         }
     </style>
 </head>
 <body>
-    <button id="ar-button">Start AR</button>
-    <div id="error">WebXR not supported or not allowed.</div>
-
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
+    <div id="game-container">
+        <div id="title">Pencil Hangman</div>
+        <div id="hangman-art">
+          ------
+         |    |
+         |
+         |
+         |
+         |
+         |
+         |
+        ----------
+        </div>
+        <div id="word-display"></div>
+        <div id="keyboard"></div>
+        <div id="message"></div>
+        <button id="restart-button">Restart</button>
+    </div>
 
     <script>
-        let camera, scene, renderer;
+        // Game state
+        const words = ["JAVASCRIPT", "HANGMAN", "DEVELOPER", "PROGRAMMING", "COMPUTER", "KEYBOARD", "CREATIVE", "DESIGN"];
+        let hiddenWord = "";
+        let guessedLetters = [];
+        let wrongGuesses = 0;
+        const maxWrongGuesses = 6;
 
-        async function init() {
-            if (!navigator.xr) {
-                document.getElementById('error').style.display = 'block';
-                return;
-            }
+        // Hangman art stages (fully corrected)
+        const hangmanStages = [
+            `
+          ------
+         |    |
+         |
+         |
+         |
+         |
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |
+         |
+         |
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |    |
+         |    |
+         |
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |   /|
+         |    |
+         |
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |   /|\\
+         |    |
+         |
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |   /|\\
+         |    |
+         |   /
+         |
+         |
+        ----------
+        `,
+        `
+          ------
+         |    |
+         |    O
+         |   /|\\
+         |    |
+         |   / \\
+         |
+         |
+        ----------
+        `
+        ];
 
-            // Setup Three.js
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.01, 1000);
+        // DOM elements
+        const hangmanArt = document.getElementById("hangman-art");
+        const wordDisplay = document.getElementById("word-display");
+        const keyboard = document.getElementById("keyboard");
+        const message = document.getElementById("message");
+        const restartButton = document.getElementById("restart-button");
 
-            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.xr.enabled = true;
-            document.body.appendChild(renderer.domElement);
-
-            // Add ARButton
-            const arButton = ARButton.createButton(renderer);
-            document.body.appendChild(arButton);
-
-            // Lighting
-            const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            scene.add(light);
-
-            // Create a cube
-            const cubeGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
-            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
-            cube.position.set(0, 0, -0.5);
-            scene.add(cube);
-
-            // Animation loop
-            renderer.setAnimationLoop(() => {
-                renderer.render(scene, camera);
-            });
-
-            // Handle window resize
-            window.addEventListener('resize', () => {
-                camera.aspect = window.innerWidth / window.innerHeight;
-                camera.updateProjectionMatrix();
-                renderer.setSize(window.innerWidth, window.innerHeight);
-            });
-        }
-
-        init();
-    </script>
-</body>
-</html>
-
-            // Start animation loop
-            renderer.setAnimationLoop(() => {
-                renderer.render(scene, camera);
-            });
-
-            // UI updates
-            updateWordDisplay();
-            updateHangman();
-
-            // Restart button
-            document.getElementById('restart-button').addEventListener('click', restartGame);
-        }
-
-        function createLetters() {
-            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-            alphabet.split('').forEach((char, i) => {
-                const geometry = new THREE.BoxGeometry(0.1, 0.1, 0.02);
-                const material = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
-                const mesh = new THREE.Mesh(geometry, material);
-                mesh.position.set((i % 5) * 0.2 - 0.4, Math.floor(i / 5) * -0.2 - 0.2, -1);
-                mesh.userData = { char };
-                scene.add(mesh);
-                letters.push(mesh);
-            });
-        }
-
-        function setupController() {
-            controller = renderer.xr.getController(0);
-            controller.addEventListener('select', onSelect);
-            scene.add(controller);
-        }
-
-        function onSelect() {
-            const raycaster = new THREE.Raycaster();
-            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
-            raycaster.ray.direction.set(0, 0, -1).transformDirection(controller.matrixWorld);
-            const intersects = raycaster.intersectObjects(letters);
-            if (intersects.length > 0) {
-                const letter = intersects[0].object;
-                const char = letter.userData.char;
-                if (!guessedLetters.includes(char)) {
-                    guessedLetters.push(char);
-                    if (!hiddenWord.includes(char)) wrongGuesses++;
-                    updateWordDisplay();
-                    updateHangman();
-                    letter.material.color.set(0xff0000);
-                    setTimeout(() => scene.remove(letter), 500);
-                }
-            }
-        }
-
-        function updateWordDisplay() {
-            const display = hiddenWord.split('').map(c => guessedLetters.includes(c) ? c : '_').join(' ');
-            document.getElementById('word-display').textContent = display;
-            if (!display.includes('_')) {
-                document.getElementById('message').textContent = "You Win!";
-            }
-        }
-
-        function updateHangman() {
-            const hangmanParts = ['(˙˙)', '|', '/', '\\', '|', '/', '\\'];
-            document.getElementById('hangman').textContent = hangmanParts.slice(0, wrongGuesses).join(' ');
-            if (wrongGuesses >= maxWrongGuesses) {
-                document.getElementById('message').textContent = `Game Over! Word was: ${hiddenWord}`;
-            }
-        }
-
-        function restartGame() {
+        // Initialize the game
+        function initGame() {
+            hiddenWord = words[Math.floor(Math.random() * words.length)];
             guessedLetters = [];
             wrongGuesses = 0;
-            hiddenWord = words[Math.floor(Math.random() * words.length)];
-            letters.forEach(letter => scene.remove(letter));
-            letters = [];
-            createLetters();
-            document.getElementById('message').textContent = '';
             updateWordDisplay();
-            updateHangman();
+            updateHangmanArt();
+            createKeyboard();
+            message.textContent = "";
         }
 
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        // Update the displayed word
+        function updateWordDisplay() {
+            const display = hiddenWord.split('').map(letter =>
+                guessedLetters.includes(letter) ? letter : "_"
+            ).join(" ");
+            wordDisplay.textContent = display;
 
-        // Initialize the app
-        init();
+            // Check for win
+            if (!display.includes("_")) {
+                message.textContent = "You win! 🎉";
+                disableKeyboard();
+            }
+        }
+
+        // Update the hangman art
+        function updateHangmanArt() {
+            hangmanArt.textContent = hangmanStages[wrongGuesses];
+
+            // Check for loss
+            if (wrongGuesses >= maxWrongGuesses) {
+                message.textContent = `Game over! The word was: ${hiddenWord} 😢`;
+                disableKeyboard();
+            }
+        }
+
+        // Create the on-screen keyboard
+        function createKeyboard() {
+            keyboard.innerHTML = "";
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+            letters.forEach(letter => {
+                const button = document.createElement("button");
+                button.textContent = letter;
+                button.className = "key";
+                button.addEventListener("click", () => guessLetter(letter));
+                keyboard.appendChild(button);
+            });
+        }
+
+        // Disable the keyboard
+        function disableKeyboard() {
+            const keys = document.querySelectorAll(".key");
+            keys.forEach(key => {
+                key.disabled = true;
+            });
+        }
+
+        // Handle letter guesses
+        function guessLetter(letter) {
+            if (!guessedLetters.includes(letter)) {
+                guessedLetters.push(letter);
+                if (!hiddenWord.includes(letter)) {
+                    wrongGuesses++;
+                    updateHangmanArt();
+                }
+                updateWordDisplay();
+            }
+
+            // Disable the guessed key
+            const keys = document.querySelectorAll(".key");
+            keys.forEach(key => {
+                if (key.textContent === letter) {
+                    key.disabled = true;
+                }
+            });
+        }
+
+        // Restart the game
+        restartButton.addEventListener("click", initGame);
+
+        // Start the game
+        initGame();
     </script>
 </body>
 </html>
