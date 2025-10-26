@@ -1,16 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
+    <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>AR Hangman</title>
+    <title>AR Test</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-            font-family: Arial, sans-serif;
-            background-color: #f0f0f0;
-        }
+        body { margin: 0; overflow: hidden; }
         #ar-button {
             position: absolute;
             left: 50%;
@@ -24,53 +19,6 @@
             border-radius: 8px;
             z-index: 100;
             cursor: pointer;
-        }
-        #ui {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            padding: 16px 24px;
-            border-radius: 12px;
-            color: white;
-            text-align: center;
-            font-family: 'Courier New', monospace;
-            z-index: 10;
-            min-width: 80%;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-        }
-        #word-display {
-            font-size: 28px;
-            letter-spacing: 8px;
-            margin-bottom: 8px;
-            color: #00ff00;
-        }
-        #hangman {
-            font-size: 24px;
-            color: #ff5555;
-            height: 60px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-        #restart-button {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            padding: 10px 16px;
-            background: #f44336;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            cursor: pointer;
-            z-index: 100;
-        }
-        #message {
-            margin-top: 8px;
-            font-size: 18px;
-            color: #00ff00;
         }
         #error {
             position: absolute;
@@ -86,32 +34,15 @@
 </head>
 <body>
     <button id="ar-button">Start AR</button>
-    <button id="restart-button">Restart</button>
-    <div id="ui">
-        <div id="word-display"></div>
-        <div id="hangman"></div>
-        <div id="message"></div>
-    </div>
-    <div id="error">WebXR not supported on this device or browser.</div>
+    <div id="error">WebXR not supported or not allowed.</div>
 
-    <!-- Load Three.js and WebXR polyfills -->
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/webxr/ARButton.js"></script>
 
     <script>
-        // --- Game State ---
-        const words = ["THREE", "WEBXR", "HANGMAN", "JAVASCRIPT", "DEVELOPER", "AUGMENTED", "REALITY"];
-        let hiddenWord = words[Math.floor(Math.random() * words.length)];
-        let guessedLetters = [];
-        let wrongGuesses = 0;
-        let letters = [];
-        const maxWrongGuesses = 6;
+        let camera, scene, renderer;
 
-        // --- Three.js Setup ---
-        let scene, camera, renderer, controller;
-
-        function init() {
-            // Check WebXR support
+        async function init() {
             if (!navigator.xr) {
                 document.getElementById('error').style.display = 'block';
                 return;
@@ -126,22 +57,38 @@
             renderer.xr.enabled = true;
             document.body.appendChild(renderer.domElement);
 
-            // ARButton for entering AR
-            document.body.appendChild(ARButton.createButton(renderer));
+            // Add ARButton
+            const arButton = ARButton.createButton(renderer);
+            document.body.appendChild(arButton);
 
             // Lighting
             const light = new THREE.HemisphereLight(0xffffff, 0xbbbbff, 1);
-            light.position.set(0.5, 1, 0.25);
             scene.add(light);
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            directionalLight.position.set(0, 1, 0);
-            scene.add(directionalLight);
 
-            // Create letters
-            createLetters();
+            // Create a cube
+            const cubeGeometry = new THREE.BoxGeometry(0.1, 0.1, 0.1);
+            const cubeMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff00 });
+            const cube = new THREE.Mesh(cubeGeometry, cubeMaterial);
+            cube.position.set(0, 0, -0.5);
+            scene.add(cube);
 
-            // Setup controller for shooting
-            setupController();
+            // Animation loop
+            renderer.setAnimationLoop(() => {
+                renderer.render(scene, camera);
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
 
             // Start animation loop
             renderer.setAnimationLoop(() => {
