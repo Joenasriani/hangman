@@ -1,4 +1,4 @@
-
-Go to:
->> https://joenasriani.github.io/hangman/
-<br><br>Le Chat
+For hangman 2d, start main/hangman-2d-index.html <br>
+For hangman 3d, go to:<br>
+>> https://joenasriani.github.io/hangman-3d/
+<br><br>
