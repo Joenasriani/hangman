@@ -39,7 +39,7 @@
 
       <a-entity 
         id="word-display" 
-        position="0 2.2 -3"
+        position="0 2.5 -3"
         visible="false" ></a-entity>
       
       <a-text
@@ -47,13 +47,13 @@
         value="Welcome to 3D Hangman!"
         align="center"
         width="6"
-        position="0 3 -3"
+        position="0 3.1 -3"
         color="#FFF"
       ></a-text>
       
       <a-entity 
         id="start-reset-button-container" 
-        position="0 1.2 -2"
+        position="0 1.8 -2.5"
       >
         <a-box
           id="start-reset-button"
@@ -61,7 +61,8 @@
           width="1.5"
           height="0.4"
           depth="0.1"
-          color="#00796b" animation__hoveron="property: scale; to: 1.1 1.1 1.1; startEvents: mouseenter; dur: 200"
+          color="#00796b"
+          animation__hoveron="property: scale; to: 1.1 1.1 1.1; startEvents: mouseenter; dur: 200"
           animation__hoveroff="property: scale; to: 1 1 1; startEvents: mouseleave; dur: 200"
         >
           <a-text
@@ -77,10 +78,10 @@
       
       <a-entity 
         id="keyboard" 
-        position="0 1.5 -2"
+        position="0 1.4 -2.5"
         visible="false" ></a-entity>
       
-      <a-entity id="hangman-structure" position="-3 0 -3" scale="0.8 0.8 0.8">
+      <a-entity id="hangman-structure" position="0 3.8 -3" scale="0.8 0.8 0.8">
         <a-box id="hm-base" position="0 0.1 0" width="2" height="0.2" depth="1" color="#634734" visible="false"></a-box>
         <a-cylinder id="hm-post" position="0.8 1.1 0" radius="0.1" height="2" color="#634734" visible="false"></a-cylinder>
         <a-box id="hm-beam" position="0.1 2.1 0" width="1.6" height="0.2" depth="0.2" color="#634734" visible="false"></a-box>
@@ -97,7 +98,17 @@
 
       init: function () {
         // --- Game State ---
-        this.wordList = ['WEBXR', 'AFRAME', 'HANGMAN', 'VIRTUAL', 'REALITY', 'JAVASCRIPT', 'METAVERSE'];
+        
+        // FIX: Expanded word list (32 words)
+        this.wordList = [
+          'WEBXR', 'AFRAME', 'HANGMAN', 'VIRTUAL', 'REALITY', 'JAVASCRIPT', 
+          'METAVERSE', 'QUEST', 'CONTROLLER', 'HEADSET', 'IMMERSIVE', 'AUGMENTED', 
+          'INTERNET', 'BROWSER', 'DEVELOPER', 'COMPONENT', 'ENTITY', 'SYSTEM', 
+          'GITHUB', 'GLITCH', 'CODING', 'PROGRAM', 'CHROME', 'FIREFOX', 
+          'MOBILE', 'DESKTOP', 'AVATAR', 'ENVIRONMENT', 'ANIMATION', 'TEXTURE', 
+          'POLYGON', 'SHADER'
+        ];
+        
         this.secretWord = '';
         this.guessedLetters = [];
         this.incorrectGuesses = 0;
@@ -109,12 +120,10 @@
         this.keyboardEl = document.getElementById('keyboard');
         this.statusMessageEl = document.getElementById('status-message');
         
-        // --- References for new 3D Button ---
         this.resetButtonContainerEl = document.getElementById('start-reset-button-container');
         this.resetButtonEl = document.getElementById('start-reset-button');
         this.resetButtonTextEl = document.getElementById('start-reset-button-text');
         
-        // Get hangman parts in order
         this.hangmanParts = [
           document.getElementById('hm-base'),
           document.getElementById('hm-post'),
@@ -127,7 +136,7 @@
         // --- Initial Setup ---
         this.createKeyboard();
         this.hideHangman();
-        // Set initial UI state (game not started)
+        
         this.statusMessageEl.setAttribute('value', 'Welcome to 3D Hangman!');
         this.keyboardEl.setAttribute('visible', 'false');
         this.wordDisplayEl.setAttribute('visible', 'false');
@@ -136,7 +145,6 @@
         
         // --- Event Listeners ---
         this.keyboardEl.addEventListener('click', this.handleKeyboardClick.bind(this));
-        // Click the new 3D button to start
         this.resetButtonEl.addEventListener('click', this.startGame.bind(this));
       },
 
@@ -145,7 +153,7 @@
         this.guessedLetters = [];
         this.incorrectGuesses = 0;
 
-        // Pick a new word
+        // FIX: Pick a random word from the expanded list
         this.secretWord = this.wordList[Math.floor(Math.random() * this.wordList.length)];
         
         // Reset UI
@@ -181,32 +189,38 @@
       },
 
       createKeyboard: function () {
-        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
         const rows = [
           'QWERTYUIOP',
           'ASDFGHJKL',
           'ZXCVBNM'
         ];
         
-        let yPos = 0.3;
+        // FIX: Adjust Y position for new spacing
+        let yPos = 0.5;
 
         rows.forEach((row, rowIndex) => {
           let rowLength = row.length;
-          let xOffset = -(rowLength * 0.3) / 2 + 0.15; // Center the row
+          
+          // FIX: Adjust X offset logic for bigger keys/spacing
+          let keySpac = 0.4; // Spacing between key centers
+          let keySize = 0.35; // Visual size of key
+          let xOffset = -(rowLength * keySpac) / 2 + (keySpac / 2); // Center the row
           
           for (let i = 0; i < row.length; i++) {
             let letter = row[i];
             
             // Create the button plane
             let button = document.createElement('a-box');
-            button.setAttribute('position', { x: xOffset + i * 0.3, y: yPos, z: 0 });
-            button.setAttribute('width', '0.25');
-            button.setAttribute('height', '0.25');
+            button.setAttribute('position', { x: xOffset + i * keySpac, y: yPos, z: 0 });
+            
+            // FIX: Make keys bigger
+            button.setAttribute('width', keySize);
+            button.setAttribute('height', keySize);
             button.setAttribute('depth', '0.1');
-            // FIX 2: Colorful button
+            
             button.setAttribute('color', '#1e88e5'); 
-            button.setAttribute('class', 'clickable keyboard-button'); // Class for raycaster
-            button.setAttribute('data-letter', letter); // Store letter data
+            button.setAttribute('class', 'clickable keyboard-button'); 
+            button.setAttribute('data-letter', letter); 
             
             // Add hover/click animations
             button.setAttribute('animation__hoveron', 'property: scale; to: 1.2 1.2 1.2; startEvents: mouseenter; dur: 150');
@@ -220,33 +234,29 @@
             text.setAttribute('align', 'center');
             text.setAttribute('width', '2');
             text.setAttribute('color', '#FFF');
-            text.setAttribute('position', '0 0 0.06'); // Slightly in front of the button
+            text.setAttribute('position', '0 0 0.06'); 
             
             button.appendChild(text);
             this.keyboardEl.appendChild(button);
           }
-          yPos -= 0.3; // Move down for the next row
+          // FIX: Move down for the next row
+          yPos -= keySpac; 
         });
       },
 
       handleKeyboardClick: function (evt) {
         if (!this.gameActive) return;
 
-        // Get the letter from the clicked button
         const buttonEl = evt.target;
         if (!buttonEl.classList.contains('keyboard-button')) return;
         
         const letter = buttonEl.getAttribute('data-letter');
         
-        // Ignore if already guessed
         if (this.guessedLetters.includes(letter)) return;
         
         this.guessedLetters.push(letter);
         
-        // Disable the button visually
-        // FIX 2: Set to a darker, disabled gray
         buttonEl.setAttribute('color', '#646464'); 
-        // Remove animations so it doesn't look clickable
         buttonEl.removeAttribute('animation__hoveron');
         buttonEl.removeAttribute('animation__hoveroff');
         
@@ -257,33 +267,27 @@
         let correctGuess = false;
         let wordComplete = true;
 
-        // Update the word display
         const letterEls = this.wordDisplayEl.children;
         for (let i = 0; i < this.secretWord.length; i++) {
           if (this.secretWord[i] === letter) {
             letterEls[i].setAttribute('value', letter);
             correctGuess = true;
           }
-          // Check if any underscores are left
           if (letterEls[i].getAttribute('value') === '_') {
             wordComplete = false;
           }
         }
         
-        // --- Handle Guess Outcome ---
         if (correctGuess) {
           this.statusMessageEl.setAttribute('value', 'Good Guess!');
-          // Check for win
           if (wordComplete) {
             this.endGame(true);
           }
         } else {
-          // Incorrect guess
           this.incorrectGuesses++;
           this.statusMessageEl.setAttribute('value', `Incorrect! ${this.maxGuesses - this.incorrectGuesses} guesses left.`);
           this.updateHangman();
           
-          // Check for loss
           if (this.incorrectGuesses >= this.maxGuesses) {
             this.endGame(false);
           }
@@ -292,7 +296,6 @@
       
       updateHangman: function() {
         if (this.incorrectGuesses > 0 && this.incorrectGuesses <= this.hangmanParts.length) {
-          // Make the next part visible
           this.hangmanParts[this.incorrectGuesses - 1].setAttribute('visible', 'true');
         }
       },
@@ -304,14 +307,12 @@
           this.statusMessageEl.setAttribute('value', 'YOU WIN!');
         } else {
           this.statusMessageEl.setAttribute('value', `YOU LOSE! Word was: ${this.secretWord}`);
-          // Reveal the full word
           const letterEls = this.wordDisplayEl.children;
           for (let i = 0; i < this.secretWord.length; i++) {
              letterEls[i].setAttribute('value', this.secretWord[i]);
           }
         }
         
-        // Show the "Play Again" button
         this.keyboardEl.setAttribute('visible', 'false');
         this.resetButtonContainerEl.setAttribute('visible', 'true');
         this.resetButtonTextEl.setAttribute('value', 'Play Again?');
@@ -320,9 +321,7 @@
       resetKeyboard: function() {
         let buttons = this.keyboardEl.querySelectorAll('.keyboard-button');
         buttons.forEach(button => {
-          // FIX 2: Reset to the blue color
           button.setAttribute('color', '#1e88e5'); 
-          // Re-add animations
           button.setAttribute('animation__hoveron', 'property: scale; to: 1.2 1.2 1.2; startEvents: mouseenter; dur: 150');
           button.setAttribute('animation__hoveroff', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 150');
         });
