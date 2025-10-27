@@ -3,8 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pencil Hangman</title>
+    <title>The Hangman Game</title>
     <style>
+        * {
+            box-sizing: border-box;
+        }
+        
         body {
             font-family: 'Comic Sans MS', cursive, sans-serif;
             background-color: #f9f4e6;
@@ -13,8 +17,9 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
+            padding: 20px;
             background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100"><rect width="100" height="100" fill="none"/><path d="M0,0 L100,0 M0,20 L100,20 M0,40 L100,40 M0,60 L100,60 M0,80 L100,80 M0,100 L100,100 M20,0 L20,100 M40,0 L40,100 M60,0 L60,100 M80,0 L80,100" stroke="%23d9d9d9" stroke-width="1"/></svg>');
         }
 
@@ -24,28 +29,51 @@
             padding: 30px;
             border: 2px dashed #ccc;
             box-shadow: 0 0 0 4px #f9f4e6, 2px 2px 10px rgba(0, 0, 0, 0.1);
-            max-width: 500px;
-            width: 90%;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        #title {
+            font-size: clamp(24px, 5vw, 42px);
+            margin-bottom: 5px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+            color: #3a3a3a;
+        }
+
+        #subtitle {
+            font-size: clamp(12px, 2.5vw, 16px);
+            margin-bottom: 20px;
+            color: #5a5a5a;
+            font-style: italic;
+        }
+
+        #hangman-container {
+            display: flex;
+            justify-content: center;
+            margin: 20px 0;
         }
 
         #hangman-art {
             font-family: 'Courier New', monospace;
-            font-size: 20px;
+            font-size: clamp(14px, 3vw, 20px);
             line-height: 1.4;
-            margin: 20px 0;
             letter-spacing: 2px;
             font-weight: bold;
             color: #3a3a3a;
             white-space: pre;
             border: 1px dashed #ccc;
             padding: 15px;
-            display: inline-block;
             background: rgba(255, 255, 255, 0.5);
+            min-height: 220px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         #word-display {
-            font-size: 28px;
-            letter-spacing: 12px;
+            font-size: clamp(20px, 5vw, 32px);
+            letter-spacing: clamp(8px, 2vw, 12px);
             margin: 20px 0;
             min-height: 40px;
             font-weight: bold;
@@ -60,17 +88,19 @@
             justify-content: center;
             gap: 6px;
             margin: 20px 0;
-            max-width: 400px;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
         }
 
         .key {
-            width: 36px;
-            height: 36px;
+            width: clamp(30px, 8vw, 40px);
+            height: clamp(30px, 8vw, 40px);
             background: #f9f4e6;
             color: #3a3a3a;
             border: 1px solid #ccc;
             border-radius: 2px;
-            font-size: 18px;
+            font-size: clamp(14px, 4vw, 18px);
             cursor: pointer;
             font-weight: bold;
             box-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
@@ -88,7 +118,7 @@
         }
 
         #message {
-            font-size: 20px;
+            font-size: clamp(16px, 4vw, 20px);
             margin: 15px 0;
             min-height: 24px;
             font-style: italic;
@@ -102,7 +132,7 @@
             color: #3a3a3a;
             border: 1px solid #ccc;
             border-radius: 20px;
-            font-size: 16px;
+            font-size: clamp(14px, 3vw, 16px);
             cursor: pointer;
             box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
             font-weight: bold;
@@ -112,28 +142,28 @@
             background: #f0ebe0;
         }
 
-        #title {
-            font-size: 32px;
-            margin-bottom: 10px;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
-            color: #3a3a3a;
+        @media (max-width: 480px) {
+            #game-container {
+                padding: 15px;
+            }
+            
+            #hangman-art {
+                padding: 10px;
+                min-height: 180px;
+            }
+            
+            #keyboard {
+                gap: 4px;
+            }
         }
     </style>
 </head>
 <body>
     <div id="game-container">
-        <div id="title">Pencil Hangman</div>
-        <div id="hangman-art">
-          ------
-         |    |
-         |
-         |
-         |
-         |
-         |
-         |
-        ----------
+        <div id="title">The Hangman Game</div>
+        <div id="subtitle">Find the hidden word or your friend is dead!</div>
+        <div id="hangman-container">
+            <div id="hangman-art"></div>
         </div>
         <div id="word-display"></div>
         <div id="keyboard"></div>
@@ -149,85 +179,78 @@
         let wrongGuesses = 0;
         const maxWrongGuesses = 6;
 
-        // Hangman art stages (fully corrected)
+        // Hangman art stages (fixed with consistent spacing)
         const hangmanStages = [
-            `
-          ------
-         |    |
-         |
-         |
-         |
-         |
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |
-         |
-         |
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |    |
-         |    |
-         |
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |   /|
-         |    |
-         |
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |   /|\\
-         |    |
-         |
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |   /|\\
-         |    |
-         |   /
-         |
-         |
-        ----------
-        `,
-        `
-          ------
-         |    |
-         |    O
-         |   /|\\
-         |    |
-         |   / \\
-         |
-         |
-        ----------
-        `
+            `  ------
+ |     |
+ |     
+ |     
+ |     
+ |     
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |     
+ |     
+ |     
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |     |
+ |     |
+ |     
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |    /|
+ |     |
+ |     
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |    /|\\
+ |     |
+ |     
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |    /|\\
+ |     |
+ |    / 
+ |     
+ |
+----------
+`,
+            `  ------
+ |     |
+ |     O
+ |    /|\\
+ |     |
+ |    / \\
+ |     
+ |
+----------
+`
         ];
 
         // DOM elements
