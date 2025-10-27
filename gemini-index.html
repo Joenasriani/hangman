@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>3D WebXR Hangman</title>
+    <meta name="description" content="3D WebXR Hangman game using A-Frame.">
+    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+  </head>
+  <body>
+    <a-scene game-manager>
+      
+      <a-assets>
+        </a-assets>
+
+      <a-sky color="#222"></a-sky>
+      <a-plane
+        position="0 0 -4"
+        rotation="-90 0 0"
+        width="20"
+        height="20"
+        color="#444"
+        shadow
+      ></a-plane>
+      <a-light type="ambient" color="#888"></a-light>
+      <a-light type="point" intensity="0.5" position="2 4 4"></a-light>
+
+      <a-entity id="playerRig" position="0 0 2">
+        <a-camera>
+          <a-cursor color="#FFF"></a-cursor>
+        </a-camera>
+        <a-entity 
+          laser-controls="hand: right"
+          raycaster="objects: .clickable"
+        ></a-entity>
+      </a-entity>
+
+      <a-entity 
+        id="word-display" 
+        position="0 2.2 -3"
+      ></a-entity>
+      
+      <a-text
+        id="status-message"
+        value="Welcome to 3D Hangman!"
+        align="center"
+        width="6"
+        position="0 3 -3"
+        color="#FFF"
+      ></a-text>
+      <a-text
+        id="reset-button"
+        value="Click here or the status to play!"
+        align="center"
+        width="4"
+        position="0 1.0 -2"
+        color="#AAA"
+        class="clickable"
+      ></a-text>
+      
+      <a-entity 
+        id="keyboard" 
+        position="0 1.5 -2"
+      ></a-entity>
+      
+      <a-entity id="hangman-structure" position="-3 0 -3" scale="0.8 0.8 0.8">
+        <a-box id="hm-base" position="0 0.1 0" width="2" height="0.2" depth="1" color="#634734" visible="false"></a-box>
+        <a-cylinder id="hm-post" position="0.8 1.1 0" radius="0.1" height="2" color="#634734" visible="false"></a-cylinder>
+        <a-box id="hm-beam" position="0.1 2.1 0" width="1.6" height="0.2" depth="0.2" color="#634734" visible="false"></a-box>
+        <a-cylinder id="hm-rope" position="-0.6 1.8 0" radius="0.03" height="0.6" color="#D2B48C" visible="false"></a-cylinder>
+        <a-sphere id="hm-head" position="-0.6 1.4 0" radius="0.15" color="#FFE4C4" visible="false"></a-sphere>
+        <a-box id="hm-body" position="-0.6 1.0 0" width="0.1" height="0.6" depth="0.1" color="#C0392B" visible="false"></a-box>
+        </a-entity>
+
+    </a-scene>
+
+    <script>
+    AFRAME.registerComponent('game-manager', {
+      schema: {},
+
+      init: function () {
+        // --- Game State ---
+        this.wordList = ['WEBXR', 'AFRAME', 'HANGMAN', 'VIRTUAL', 'REALITY', 'JAVASCRIPT', 'METAVERSE'];
+        this.secretWord = '';
+        this.guessedLetters = [];
+        this.incorrectGuesses = 0;
+        this.maxGuesses = 6;
+        this.gameActive = false;
+
+        // --- A-Frame Entity References ---
+        this.wordDisplayEl = document.getElementById('word-display');
+        this.keyboardEl = document.getElementById('keyboard');
+        this.statusMessageEl = document.getElementById('status-message');
+        this.resetButtonEl = document.getElementById('reset-button');
+        
+        // Get hangman parts in order
+        this.hangmanParts = [
+          document.getElementById('hm-base'),
+          document.getElementById('hm-post'),
+          document.getElementById('hm-beam'),
+          document.getElementById('hm-rope'),
+          document.getElementById('hm-head'),
+          document.getElementById('hm-body')
+        ];
+
+        // --- Initial Setup ---
+        this.createKeyboard();
+        
+        // --- Event Listeners ---
+        this.keyboardEl.addEventListener('click', this.handleKeyboardClick.bind(this));
+        // Click status message or reset button to play
+        this.statusMessageEl.addEventListener('click', this.startGame.bind(this));
+        this.resetButtonEl.addEventListener('click', this.startGame.bind(this));
+      },
+
+      startGame: function () {
+        this.gameActive = true;
+        this.guessedLetters = [];
+        this.incorrectGuesses = 0;
+
+        // Pick a new word
+        this.secretWord = this.wordList[Math.floor(Math.random() * this.wordList.length)];
+        
+        // Reset UI
+        this.statusMessageEl.setAttribute('value', 'Guess a letter!');
+        this.resetButtonEl.setAttribute('value', ''); // Hide reset button
+        this.resetKeyboard();
+        this.hideHangman();
+        this.createWordDisplay();
+      },
+      
+      createWordDisplay: function () {
+        // Clear previous word
+        while (this.wordDisplayEl.firstChild) {
+          this.wordDisplayEl.removeChild(this.wordDisplayEl.firstChild);
+        }
+
+        const wordLength = this.secretWord.length;
+        const totalWidth = wordLength * 0.6; // 0.5 width + 0.1 spacing
+        const startX = -totalWidth / 2 + 0.25;
+
+        for (let i = 0; i < wordLength; i++) {
+          let letterEl = document.createElement('a-text');
+          letterEl.setAttribute('value', '_');
+          letterEl.setAttribute('align', 'center');
+          letterEl.setAttribute('width', '4');
+          letterEl.setAttribute('color', '#FFF');
+          letterEl.setAttribute('position', { x: startX + i * 0.6, y: 0, z: 0 });
+          this.wordDisplayEl.appendChild(letterEl);
+        }
+      },
+
+      createKeyboard: function () {
+        const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const rows = [
+          'QWERTYUIOP',
+          'ASDFGHJKL',
+          'ZXCVBNM'
+        ];
+        
+        let yPos = 0.3;
+
+        rows.forEach((row, rowIndex) => {
+          let rowLength = row.length;
+          let xOffset = -(rowLength * 0.3) / 2 + 0.15; // Center the row
+          
+          for (let i = 0; i < row.length; i++) {
+            let letter = row[i];
+            
+            // Create the button plane
+            let button = document.createElement('a-box');
+            button.setAttribute('position', { x: xOffset + i * 0.3, y: yPos, z: 0 });
+            button.setAttribute('width', '0.25');
+            button.setAttribute('height', '0.25');
+            button.setAttribute('depth', '0.1');
+            button.setAttribute('color', '#4a4a4a');
+            button.setAttribute('class', 'clickable keyboard-button'); // Class for raycaster
+            button.setAttribute('data-letter', letter); // Store letter data
+            
+            // Create the 3D text for the letter
+            let text = document.createElement('a-text');
+            text.setAttribute('value', letter);
+            text.setAttribute('align', 'center');
+            text.setAttribute('width', '2');
+            text.setAttribute('color', '#FFF');
+            text.setAttribute('position', '0 0 0.06'); // Slightly in front of the button
+            
+            button.appendChild(text);
+            this.keyboardEl.appendChild(button);
+          }
+          yPos -= 0.3; // Move down for the next row
+        });
+      },
+
+      handleKeyboardClick: function (evt) {
+        if (!this.gameActive) return;
+
+        // Get the letter from the clicked button
+        const buttonEl = evt.target;
+        if (!buttonEl.classList.contains('keyboard-button')) return;
+        
+        const letter = buttonEl.getAttribute('data-letter');
+        
+        // Ignore if already guessed
+        if (this.guessedLetters.includes(letter)) return;
+        
+        this.guessedLetters.push(letter);
+        
+        // Disable the button visually
+        buttonEl.setAttribute('color', '#111');
+        
+        this.processGuess(letter);
+      },
+      
+      processGuess: function(letter) {
+        let correctGuess = false;
+        let wordComplete = true;
+
+        // Update the word display
+        const letterEls = this.wordDisplayEl.children;
+        for (let i = 0; i < this.secretWord.length; i++) {
+          if (this.secretWord[i] === letter) {
+            letterEls[i].setAttribute('value', letter);
+            correctGuess = true;
+          }
+          // Check if any underscores are left
+          if (letterEls[i].getAttribute('value') === '_') {
+            wordComplete = false;
+          }
+        }
+        
+        // --- Handle Guess Outcome ---
+        if (correctGuess) {
+          this.statusMessageEl.setAttribute('value', 'Good Guess!');
+          // Check for win
+          if (wordComplete) {
+            this.endGame(true);
+          }
+        } else {
+          // Incorrect guess
+          this.incorrectGuesses++;
+          this.statusMessageEl.setAttribute('value', `Incorrect! ${this.maxGuesses - this.incorrectGuesses} guesses left.`);
+          this.updateHangman();
+          
+          // Check for loss
+          if (this.incorrectGuesses >= this.maxGuesses) {
+            this.endGame(false);
+          }
+        }
+      },
+      
+      updateHangman: function() {
+        if (this.incorrectGuesses > 0 && this.incorrectGuesses <= this.hangmanParts.length) {
+          // Make the next part visible
+          this.hangmanParts[this.incorrectGuesses - 1].setAttribute('visible', 'true');
+        }
+      },
+      
+      endGame: function(didWin) {
+        this.gameActive = false;
+        
+        if (didWin) {
+          this.statusMessageEl.setAttribute('value', 'YOU WIN!');
+        } else {
+          this.statusMessageEl.setAttribute('value', `YOU LOSE! Word was: ${this.secretWord}`);
+          // Reveal the full word
+          const letterEls = this.wordDisplayEl.children;
+          for (let i = 0; i < this.secretWord.length; i++) {
+             letterEls[i].setAttribute('value', this.secretWord[i]);
+          }
+        }
+        this.resetButtonEl.setAttribute('value', 'Click to Play Again');
+      },
+      
+      resetKeyboard: function() {
+        let buttons = this.keyboardEl.querySelectorAll('.keyboard-button');
+        buttons.forEach(button => {
+          button.setAttribute('color', '#4a4a4a'); // Reset color
+        });
+      },
+      
+      hideHangman: function() {
+        this.hangmanParts.forEach(part => {
+          part.setAttribute('visible', 'false');
+        });
+      }
+    });
+    </script>
+  </body>
+</html>
