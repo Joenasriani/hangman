@@ -3,16 +3,19 @@
   <head>
     <title>3D WebXR Hangman</title>
     <meta name="description" content="3D WebXR Hangman game using A-Frame.">
-    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-environment-component@1.3.4/dist/aframe-environment-component.min.js"></script>
+    <!-- Import A-Frame Library --><script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <!-- Import A-Frame Environment Component --><script src="https://unpkg.com/aframe-environment-component@1.3.4/dist/aframe-environment-component.min.js"></script>
   </head>
   <body>
     <a-scene game-manager>
       
-      <a-assets>
-        </a-assets>
+      <!-- 1. ASSETS & ENVIRONMENT --><a-assets>
+        <!-- Sound effects --><audio id="click-sound" src="https://aframe.io/sample-assets/assets/audio/click.ogg"></audio>
+        <audio id="win-sound" src="https://aframe.io/sample-assets/assets/audio/chime.mp3"></audio>
+        <audio id="lose-sound" src="https://aframe.io/sample-assets/assets/audio/explosion.mp3"></audio>
+      </a-assets>
 
-      <a-entity 
+      <!-- Colorful Environment --><a-entity 
         environment="preset: default; 
                      skyColor: #37b3f0; 
                      ground: flat; 
@@ -24,25 +27,26 @@
       <a-light type="ambient" color="#AAA"></a-light>
       <a-light type="point" intensity="0.5" position="2 4 4"></a-light>
 
-      <a-entity id="playerRig" position="0 0 2">
+      <!-- 2. PLAYER RIG --><!-- Adjusted initial position for a taller viewer (y=1.8 instead of 0) --><a-entity id="playerRig" position="0 1.8 2" camera-gestures>
         <a-camera>
-          <a-cursor 
+          <!-- Cursor for mobile gaze-based clicking --><a-cursor 
             color="#FFF"
             raycaster="objects: .clickable"
+            fuse="false"
           ></a-cursor>
         </a-camera>
-        <a-entity 
+        <!-- Controller with a laser pointer for VR --><a-entity 
           laser-controls="hand: right"
           raycaster="objects: .clickable"
         ></a-entity>
       </a-entity>
 
-      <a-entity 
+      <!-- 3. GAME UI --><!-- Word Display --><a-entity 
         id="word-display" 
         position="0 2.5 -3"
-        visible="false" ></a-entity>
+        visible="false" <!-- Hidden until game starts -->></a-entity>
       
-      <a-text
+      <!-- Status Message --><a-text
         id="status-message"
         value="Welcome to 3D Hangman!"
         align="center"
@@ -51,7 +55,7 @@
         color="#FFF"
       ></a-text>
       
-      <a-entity 
+      <!-- 3D Start/Reset Button --><a-entity 
         id="start-reset-button-container" 
         position="0 1.8 -2.5"
       >
@@ -76,12 +80,15 @@
         </a-box>
       </a-entity>
       
-      <a-entity 
+      <!-- Keyboard --><a-entity 
         id="keyboard" 
         position="0 1.4 -2.5"
-        visible="false" ></a-entity>
+        visible="false" <!-- Hidden until game starts -->></a-entity>
       
-      <a-entity id="hangman-structure" position="0 3.8 -3" scale="0.8 0.8 0.8">
+      <!-- 
+        3D Hangman Structure 
+        Positioned above the word display area
+      --><a-entity id="hangman-structure" position="0 3.8 -3" scale="0.8 0.8 0.8">
         <a-box id="hm-base" position="0 0.1 0" width="2" height="0.2" depth="1" color="#634734" visible="false"></a-box>
         <a-cylinder id="hm-post" position="0.8 1.1 0" radius="0.1" height="2" color="#634734" visible="false"></a-cylinder>
         <a-box id="hm-beam" position="0.1 2.1 0" width="1.6" height="0.2" depth="0.2" color="#634734" visible="false"></a-box>
@@ -90,16 +97,146 @@
         <a-box id="hm-body" position="-0.6 1.0 0" width="0.1" height="0.6" depth="0.1" color="#C0392B" visible="false"></a-box>
       </a-entity>
 
+      <!-- Sound components --><a-sound src="#click-sound" id="keyboardClickSound"></a-sound>
+      <a-sound src="#win-sound" id="winGameSound"></a-sound>
+      <a-sound src="#lose-sound" id="loseGameSound"></a-sound>
+
     </a-scene>
 
     <script>
+    // Custom component for handling camera movement and zoom via gestures
+    AFRAME.registerComponent('camera-gestures', {
+        init: function () {
+            this.cameraEl = this.el; // playerRig is the camera rig
+            this.initialPos = this.cameraEl.object3D.position.clone();
+            this.initialScale = this.cameraEl.object3D.scale.clone();
+            this.isPinching = false;
+            this.lastDistance = 0;
+            this.lastMidpoint = new THREE.Vector2();
+            this.isDragging = false;
+            this.lastX = 0;
+            this.lastY = 0;
+
+            const sceneEl = this.el.sceneEl;
+            sceneEl.addEventListener('touchstart', this.onTouchStart.bind(this));
+            sceneEl.addEventListener('touchmove', this.onTouchMove.bind(this));
+            sceneEl.addEventListener('touchend', this.onTouchEnd.bind(this));
+        },
+
+        onTouchStart: function (evt) {
+            if (evt.touches.length === 2) {
+                this.isPinching = true;
+                this.lastDistance = this.getDistance(evt.touches);
+                this.lastMidpoint = this.getMidpoint(evt.touches);
+            } else if (evt.touches.length === 1) {
+                this.isDragging = true;
+                this.lastX = evt.touches[0].clientX;
+                this.lastY = evt.touches[0].clientY;
+            }
+        },
+
+        onTouchMove: function (evt) {
+            if (this.isPinching && evt.touches.length === 2) {
+                const currentDistance = this.getDistance(evt.touches);
+                const distanceChange = currentDistance - this.lastDistance;
+                this.lastDistance = currentDistance;
+
+                // Zoom (move forward/backward along Z axis)
+                const currentZ = this.cameraEl.object3D.position.z;
+                this.cameraEl.object3D.position.z += distanceChange * 0.005; // Adjust sensitivity
+                // Clamp zoom to reasonable limits (e.g., between -5 and 5)
+                this.cameraEl.object3D.position.z = Math.max(-10, Math.min(5, this.cameraEl.object3D.position.z));
+                
+                const currentMidpoint = this.getMidpoint(evt.touches);
+                const dx = currentMidpoint.x - this.lastMidpoint.x;
+                const dy = currentMidpoint.y - this.lastMidpoint.y;
+                this.lastMidpoint = currentMidpoint;
+
+                // Pan (move along X and Y axis relative to camera direction)
+                // Convert screen delta to world coordinates. This is a simplified approach.
+                const moveSpeed = 0.002; // Adjust sensitivity
+                const deltaX = -dx * moveSpeed;
+                const deltaY = dy * moveSpeed;
+
+                // Apply movement relative to the camera's current orientation
+                let currentPos = this.cameraEl.object3D.position;
+                let forward = new THREE.Vector3(0,0,-1).applyQuaternion(this.cameraEl.object3D.quaternion);
+                let right = new THREE.Vector3(1,0,0).applyQuaternion(this.cameraEl.object3D.quaternion);
+                let up = new THREE.Vector3(0,1,0).applyQuaternion(this.cameraEl.object3D.quaternion);
+
+                this.cameraEl.object3D.position.addScaledVector(right, deltaX);
+                this.cameraEl.object3D.position.addScaledVector(up, deltaY);
+
+
+            } else if (this.isDragging && evt.touches.length === 1) {
+                const currentX = evt.touches[0].clientX;
+                const currentY = evt.touches[0].clientY;
+                const dx = currentX - this.lastX;
+                const dy = currentY - this.lastY;
+                this.lastX = currentX;
+                this.lastY = currentY;
+
+                // Pan (move along X and Y axis relative to camera direction)
+                const moveSpeed = 0.002; // Adjust sensitivity
+                const deltaX = -dx * moveSpeed;
+                const deltaY = dy * moveSpeed;
+                
+                let currentPos = this.cameraEl.object3D.position;
+                let right = new THREE.Vector3(1,0,0).applyQuaternion(this.cameraEl.object3D.quaternion);
+                let up = new THREE.Vector3(0,1,0).applyQuaternion(this.cameraEl.object3D.quaternion);
+
+                this.cameraEl.object3D.position.addScaledVector(right, deltaX);
+                this.cameraEl.object3D.position.addScaledVector(up, deltaY);
+            }
+        },
+
+        onTouchEnd: function (evt) {
+            this.isPinching = false;
+            this.isDragging = false;
+        },
+
+        getDistance: function (touches) {
+            const dx = touches[0].clientX - touches[1].clientX;
+            const dy = touches[0].clientY - touches[1].clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        },
+
+        getMidpoint: function (touches) {
+            return new THREE.Vector2(
+                (touches[0].clientX + touches[1].clientX) / 2,
+                (touches[0].clientY + touches[1].clientY) / 2
+            );
+        }
+    });
+
+    // Global tap listener component to dispatch clicks to the currently gazed element
+    AFRAME.registerComponent('global-tap-listener', {
+      init: function () {
+        const sceneEl = this.el.sceneEl;
+        sceneEl.addEventListener('touchend', this.handleGlobalTap.bind(this));
+      },
+
+      handleGlobalTap: function () {
+        const cursorEl = document.querySelector('a-cursor');
+        if (!cursorEl) return;
+
+        const intersectedEl = cursorEl.components.raycaster.intersectedEls[0];
+        if (intersectedEl && intersectedEl.classList.contains('clickable')) {
+          // Dispatch a click event to the intersected element
+          // This will trigger the game-manager's click handler
+          intersectedEl.click();
+        }
+      }
+    });
+
+
     AFRAME.registerComponent('game-manager', {
       schema: {},
 
       init: function () {
         // --- Game State ---
         
-        // FIX: Expanded word list (32 words)
+        // Expanded word list
         this.wordList = [
           'WEBXR', 'AFRAME', 'HANGMAN', 'VIRTUAL', 'REALITY', 'JAVASCRIPT', 
           'METAVERSE', 'QUEST', 'CONTROLLER', 'HEADSET', 'IMMERSIVE', 'AUGMENTED', 
@@ -112,7 +249,9 @@
         this.secretWord = '';
         this.guessedLetters = [];
         this.incorrectGuesses = 0;
-        this.maxGuesses = 6;
+        
+        // LOGIC: Max guesses is 6
+        this.maxGuesses = 6; 
         this.gameActive = false;
 
         // --- A-Frame Entity References ---
@@ -124,6 +263,11 @@
         this.resetButtonEl = document.getElementById('start-reset-button');
         this.resetButtonTextEl = document.getElementById('start-reset-button-text');
         
+        // Get references to sound components
+        this.keyboardClickSound = document.getElementById('keyboardClickSound');
+        this.winGameSound = document.getElementById('winGameSound');
+        this.loseGameSound = document.getElementById('loseGameSound');
+
         this.hangmanParts = [
           document.getElementById('hm-base'),
           document.getElementById('hm-post'),
@@ -144,8 +288,12 @@
         this.resetButtonTextEl.setAttribute('value', 'START HANGMAN');
         
         // --- Event Listeners ---
+        // Changed to listen for 'touchend' event for global tap functionality
         this.keyboardEl.addEventListener('click', this.handleKeyboardClick.bind(this));
         this.resetButtonEl.addEventListener('click', this.startGame.bind(this));
+
+        // Attach global tap listener to the scene
+        this.el.setAttribute('global-tap-listener', '');
       },
 
       startGame: function () {
@@ -153,14 +301,14 @@
         this.guessedLetters = [];
         this.incorrectGuesses = 0;
 
-        // FIX: Pick a random word from the expanded list
+        // Pick a random word
         this.secretWord = this.wordList[Math.floor(Math.random() * this.wordList.length)];
         
         // Reset UI
         this.statusMessageEl.setAttribute('value', 'Guess a letter!');
-        this.resetButtonContainerEl.setAttribute('visible', 'false'); // Hide start button
-        this.keyboardEl.setAttribute('visible', 'true'); // Show keyboard
-        this.wordDisplayEl.setAttribute('visible', 'true'); // Show word
+        this.resetButtonContainerEl.setAttribute('visible', 'false'); 
+        this.keyboardEl.setAttribute('visible', 'true'); 
+        this.wordDisplayEl.setAttribute('visible', 'true'); 
         
         this.resetKeyboard();
         this.hideHangman();
@@ -174,8 +322,10 @@
         }
 
         const wordLength = this.secretWord.length;
-        const totalWidth = wordLength * 0.6; // 0.5 width + 0.1 spacing
-        const startX = -totalWidth / 2 + 0.25;
+        // Adjusted spacing for letters to make the total word length shorter
+        const letterSpacing = 0.4; // Reduced from 0.6
+        const totalWidth = wordLength * letterSpacing; 
+        const startX = -totalWidth / 2 + (letterSpacing / 2);
 
         for (let i = 0; i < wordLength; i++) {
           let letterEl = document.createElement('a-text');
@@ -183,7 +333,7 @@
           letterEl.setAttribute('align', 'center');
           letterEl.setAttribute('width', '4');
           letterEl.setAttribute('color', '#FFF');
-          letterEl.setAttribute('position', { x: startX + i * 0.6, y: 0, z: 0 });
+          letterEl.setAttribute('position', { x: startX + i * letterSpacing, y: 0, z: 0 });
           this.wordDisplayEl.appendChild(letterEl);
         }
       },
@@ -195,40 +345,34 @@
           'ZXCVBNM'
         ];
         
-        // FIX: Adjust Y position for new spacing
         let yPos = 0.5;
 
         rows.forEach((row, rowIndex) => {
           let rowLength = row.length;
           
-          // FIX: Adjust X offset logic for bigger keys/spacing
-          let keySpac = 0.4; // Spacing between key centers
+          let keySpac = 0.4; // Spacing between key centers (matches word spacing now)
           let keySize = 0.35; // Visual size of key
           let xOffset = -(rowLength * keySpac) / 2 + (keySpac / 2); // Center the row
           
           for (let i = 0; i < row.length; i++) {
             let letter = row[i];
             
-            // Create the button plane
             let button = document.createElement('a-box');
             button.setAttribute('position', { x: xOffset + i * keySpac, y: yPos, z: 0 });
-            
-            // FIX: Make keys bigger
             button.setAttribute('width', keySize);
             button.setAttribute('height', keySize);
             button.setAttribute('depth', '0.1');
-            
             button.setAttribute('color', '#1e88e5'); 
             button.setAttribute('class', 'clickable keyboard-button'); 
             button.setAttribute('data-letter', letter); 
             
-            // Add hover/click animations
+            // Hover animations
             button.setAttribute('animation__hoveron', 'property: scale; to: 1.2 1.2 1.2; startEvents: mouseenter; dur: 150');
             button.setAttribute('animation__hoveroff', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 150');
-            button.setAttribute('animation__click', 'property: components.material.material.color; type: color; to: #0d47a1; startEvents: mousedown; dur: 50');
-            button.setAttribute('animation__clickrelease', 'property: components.material.material.color; type: color; to: #1e88e5; startEvents: mouseup; dur: 150');
+            // Click animation (color change)
+            button.setAttribute('animation__clickcolor', 'property: components.material.material.color; type: color; to: #0d47a1; startEvents: mousedown; dur: 50');
+            button.setAttribute('animation__clickrecolor', 'property: components.material.material.color; type: color; to: #1e88e5; startEvents: mouseup; dur: 150');
             
-            // Create the 3D text for the letter
             let text = document.createElement('a-text');
             text.setAttribute('value', letter);
             text.setAttribute('align', 'center');
@@ -239,7 +383,6 @@
             button.appendChild(text);
             this.keyboardEl.appendChild(button);
           }
-          // FIX: Move down for the next row
           yPos -= keySpac; 
         });
       },
@@ -256,10 +399,16 @@
         
         this.guessedLetters.push(letter);
         
+        // Play click sound
+        this.keyboardClickSound.components.sound.playSound();
+
         buttonEl.setAttribute('color', '#646464'); 
         buttonEl.removeAttribute('animation__hoveron');
         buttonEl.removeAttribute('animation__hoveroff');
-        
+        // Prevent re-triggering click animations on disabled buttons
+        buttonEl.removeAttribute('animation__clickcolor');
+        buttonEl.removeAttribute('animation__clickrecolor');
+
         this.processGuess(letter);
       },
       
@@ -305,8 +454,10 @@
         
         if (didWin) {
           this.statusMessageEl.setAttribute('value', 'YOU WIN!');
+          this.winGameSound.components.sound.playSound(); // Play win sound
         } else {
           this.statusMessageEl.setAttribute('value', `YOU LOSE! Word was: ${this.secretWord}`);
+          this.loseGameSound.components.sound.playSound(); // Play lose sound
           const letterEls = this.wordDisplayEl.children;
           for (let i = 0; i < this.secretWord.length; i++) {
              letterEls[i].setAttribute('value', this.secretWord[i]);
@@ -324,6 +475,9 @@
           button.setAttribute('color', '#1e88e5'); 
           button.setAttribute('animation__hoveron', 'property: scale; to: 1.2 1.2 1.2; startEvents: mouseenter; dur: 150');
           button.setAttribute('animation__hoveroff', 'property: scale; to: 1 1 1; startEvents: mouseleave; dur: 150');
+          // Re-add click animations
+          button.setAttribute('animation__clickcolor', 'property: components.material.material.color; type: color; to: #0d47a1; startEvents: mousedown; dur: 50');
+          button.setAttribute('animation__clickrecolor', 'property: components.material.material.color; type: color; to: #1e88e5; startEvents: mouseup; dur: 150');
         });
       },
       
