@@ -3,7 +3,7 @@
 **Status:** original browser word game project with 2D and 3D builds  
 **Play 3D:** https://joenasriani.github.io/hangman/  
 **Creator:** Joe Nasr  
-**Creator identity:** https://joe-nasr-signals.vercel.app/v2/
+**Creator identity:** https://joe-nasr-signals.vercel.app/
 
 This repository contains Joe Nasr's browser Hangman game work in two presentation variants:
 
